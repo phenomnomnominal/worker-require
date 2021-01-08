@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "importHelpers": true,
+    "lib": ["dom", "esnext"],
+    "moduleResolution": "node",
+    "noEmitOnError": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "pretty": true,
+    "sourceMap": true,
+    "strict": true,
+    "target": "ES2015",
+    "outDir": "./dist/src",
+    "typeRoots": ["./node_modules/@types/"],
+    "module": "CommonJS"
+  },
+  "exclude": ["./node_modules/**/*", "./dist/**/*", "./test/**/*", "./fixtures/**/*", "./*.js"]
+}
