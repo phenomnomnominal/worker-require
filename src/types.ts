@@ -1,3 +1,7 @@
+export type WorkerRequireOptions = {
+  cache: boolean;
+};
+
 export type Obj = Record<PropertyKey, unknown>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

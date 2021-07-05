@@ -159,7 +159,7 @@ describe('worker-require', () => {
   it('actualy makes shit faster', async () => {
     const { destroy, fibonacci } = workerRequire<
       WorkerModule<typeof import('../fixtures/basic')>
-    >('../dist/fixtures/basic');
+    >('../dist/fixtures/basic', { cache: false });
 
     const startSerial = Date.now();
     await Promise.all([

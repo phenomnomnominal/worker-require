@@ -1,14 +1,17 @@
 import callsite from 'callsite';
 import path from 'path';
 
-import { createWorker, destroyWorker } from './factory';
+import { getWorker, destroyWorker } from './factory';
 import { setProxy } from './proxy';
-import { Functions, AsyncWorkerModule } from './types';
+import { Functions, AsyncWorkerModule, WorkerRequireOptions } from './types';
 import { isFunctionName } from './utils';
 
 setProxy();
 
-export function workerRequire<Module>(id: string): AsyncWorkerModule<Module> {
+export function workerRequire<Module>(
+  id: string,
+  options: WorkerRequireOptions = { cache: true }
+): AsyncWorkerModule<Module> {
   const [, call] = callsite();
   const sourcePath = call.getFileName();
 
@@ -18,7 +21,7 @@ export function workerRequire<Module>(id: string): AsyncWorkerModule<Module> {
   const module = require(requirePath) as Module;
 
   return new Proxy({} as AsyncWorkerModule<Module>, {
-    get(_: AsyncWorkerModule<Module>, name: keyof Module): unknown {
+    get(_: AsyncWorkerModule<Module>, name: string | symbol): unknown {
       if (name === 'destroy') {
         return function destroy(): void {
           destroyWorker(requirePath);
@@ -34,7 +37,7 @@ export function workerRequire<Module>(id: string): AsyncWorkerModule<Module> {
       return function <WorkerArgs extends Array<unknown>>(
         ...args: WorkerArgs
       ): WorkerResult {
-        const api = createWorker<Module>(requirePath);
+        const api = getWorker<Module>(requirePath, options);
         return (api[name] as WorkerFunc)(...args) as WorkerResult;
       };
     },

@@ -2,6 +2,7 @@ import { releaseProxy, Remote, wrap } from 'comlink';
 import nodeEndpoint from 'comlink/dist/umd/node-adapter';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
+import { WorkerRequireOptions } from './types';
 
 const WORKER_PATH = path.resolve(
   require.resolve('@phenomnomnominal/worker-require'),
@@ -9,6 +10,18 @@ const WORKER_PATH = path.resolve(
 );
 
 const cache = new Map<string, Array<Remote<unknown>>>();
+
+export function getWorker<Module = unknown>(
+  requirePath: string,
+  options: WorkerRequireOptions
+): Remote<Module> {
+  const cached = cache.get(requirePath) as Array<Remote<Module>>;
+  if (!cached || !options.cache) {
+    return createWorker<Module>(requirePath);
+  }
+  const [worker] = cached;
+  return worker;
+}
 
 export function createWorker<Module = unknown>(
   requirePath: string
