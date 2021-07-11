@@ -1,4 +1,4 @@
-import { workerRequire, WorkerModule } from '../src/index';
+import { workerRequire, WorkerModule, AsyncWorkerModule } from '../src/index';
 
 import * as basic from '../fixtures/basic';
 
@@ -229,7 +229,6 @@ describe('worker-require', () => {
 });
 
 // Types tests:
-
 type AssertErrorMessage<Expected, Error extends { message: Expected }> = Error;
 
 export type WorkerModuleErrorValue = AssertErrorMessage<
@@ -284,16 +283,27 @@ export type WorkerModuleErrorFunctionArgMapValue = AssertErrorMessage<
   }>['functionArgMapValue']
 >;
 
-export type WorkerModuleErrorFunctionResultFunction = AssertErrorMessage<
+export type WorkerModuleErrorFunctionResultObjectFunctionArg = AssertErrorMessage<
   'Function return value should not contain synchronous functions',
   WorkerModule<{
-    functionResultFunction: () => Promise<() => number>;
-  }>['functionResultFunction']
+    functionResultObject: () => Promise<{ a: (b: () => number) => number }>;
+  }>['functionResultObject']
 >;
 
-export type WorkerModuleErrorFunctionResultObject = AssertErrorMessage<
-  'Function return value should not contain synchronous functions',
-  WorkerModule<{
-    functionResultObject: () => Promise<{ a: () => number }>;
-  }>['functionResultObject']
+type AssertType<Expected, Recieved extends Expected> = Recieved;
+
+export type TransformSyncToAsync = AssertType<
+  () => Promise<string>,
+  AsyncWorkerModule<{
+    init(): string;
+  }>['init']
+>;
+
+export type AllowSyncForAsync = AssertType<
+  () => string | Promise<string>,
+  Parameters<
+    AsyncWorkerModule<{
+      init(a: () => Promise<string>): string;
+    }>['init']
+  >[0]
 >;
