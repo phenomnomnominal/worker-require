@@ -206,8 +206,8 @@ export type AsyncWorkerModuleFunction<F extends Func> = (
     ? AsyncWorkerArray<Parameters<F>>
     : never
 ) => ReturnType<F> extends Promise<infer Return>
-  ? Promise<Return>
-  : Promise<ReturnType<F>>;
+  ? Promise<AsyncWorkerValue<Return>>
+  : Promise<AsyncWorkerValue<ReturnType<F>>>;
 
 export type AsyncWorkerModuleValue<V> = V extends Promise<unknown>
   ? V
