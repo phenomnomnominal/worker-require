@@ -274,9 +274,6 @@ export type CloneableValue =
   | String
   | Date
   | RegExp
-  | Blob
-  | File
-  | FileList
   | ArrayBuffer
   | ArrayBufferView;
 
