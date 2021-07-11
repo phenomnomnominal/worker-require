@@ -2,11 +2,11 @@ import callsite from 'callsite';
 import path from 'path';
 
 import { getWorker, destroyWorker } from './factory';
-import { setProxy } from './proxy';
-import { Functions, AsyncWorkerModule, WorkerRequireOptions } from './types';
-import { isFunctionName } from './utils';
+import { setHandlers } from './handlers';
+import { TO_CLONEABLE } from './toCloneable';
+import { AsyncWorkerModule, WorkerRequireOptions } from './types';
 
-setProxy();
+setHandlers();
 
 export function workerRequire<Module>(
   id: string,
@@ -17,29 +17,44 @@ export function workerRequire<Module>(
 
   const idPath = path.resolve(path.dirname(sourcePath), id);
   const requirePath = require.resolve(idPath);
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const module = require(requirePath) as Module;
+
+  function destroy(): void {
+    destroyWorker(requirePath);
+  }
 
   return new Proxy({} as AsyncWorkerModule<Module>, {
     get(_: AsyncWorkerModule<Module>, name: string | symbol): unknown {
       if (name === 'destroy') {
-        return function destroy(): void {
-          destroyWorker(requirePath);
-        };
+        return destroy;
       }
 
-      if (!isFunctionName<Module>(module, name)) {
-        throw new Error(`'${name.toString()}' is not a function`);
-      }
-
-      type WorkerFunc = Functions<Module>[typeof name];
-      type WorkerResult = Promise<ReturnType<WorkerFunc>>;
-      return function <WorkerArgs extends Array<unknown>>(
-        ...args: WorkerArgs
-      ): WorkerResult {
-        const api = getWorker<Module>(requirePath, options);
-        return (api[name] as WorkerFunc)(...args) as WorkerResult;
-      };
+      return new Proxy(() => void 0, {
+        get(_: unknown, propertyName: string | symbol): unknown {
+          if (propertyName === TO_CLONEABLE) {
+            return null;
+          }
+          try {
+            const api = getWorker<Module>(requirePath, options);
+            /* eslint-disable @typescript-eslint/no-unsafe-member-access */
+            // @ts-expect-error Proxy magic, hard to type:
+            return api[name][propertyName];
+            /* eslint-enable @typescript-eslint/no-unsafe-member-access */
+          } catch {
+            destroy();
+          }
+        },
+        apply(_: unknown, __: unknown, args: Array<unknown>): unknown {
+          try {
+            const api = getWorker<Module>(requirePath, options);
+            /* eslint-disable @typescript-eslint/no-unsafe-call */
+            // @ts-expect-error Proxy magic, hard to type:
+            return api[name](...args);
+            /* eslint-enable @typescript-eslint/no-unsafe-call */
+          } catch {
+            destroy();
+          }
+        },
+      });
     },
   });
 }

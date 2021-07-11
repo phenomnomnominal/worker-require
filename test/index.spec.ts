@@ -1,6 +1,8 @@
 import { workerRequire, WorkerModule } from '../src/index';
 
-import * as basic from '../dist/fixtures/basic';
+import * as basic from '../fixtures/basic';
+
+jest.setTimeout(1000000);
 
 describe('worker-require', () => {
   it('should wrap functions in a Worker', async () => {
@@ -70,6 +72,45 @@ describe('worker-require', () => {
     destroy();
   });
 
+  it('should work with instances', async () => {
+    const { instance, destroy } = workerRequire<
+      WorkerModule<typeof import('../fixtures/value')>
+    >('../dist/fixtures/value');
+
+    const result = await instance.method(3, 4);
+
+    expect(result).toEqual(12);
+
+    destroy();
+  });
+
+  it('should work with objects', async () => {
+    const { obj, destroy } = workerRequire<
+      WorkerModule<typeof import('../fixtures/value')>
+    >('../dist/fixtures/value');
+
+    const result = await obj.func(3, 4);
+
+    expect(result).toEqual(81);
+
+    destroy();
+  });
+
+  it('should work with TO_CLONEABLE', async () => {
+    const { transferFoo, destroy } = workerRequire<
+      WorkerModule<typeof import('../fixtures/value')>
+    >('../dist/fixtures/value');
+
+    const result = await transferFoo();
+
+    expect(result.a).toEqual(1000);
+    expect(result.b).toEqual('foo');
+    // @ts-expect-error check that this isn't a proxy:
+    expect(result.c).not.toBeDefined();
+
+    destroy();
+  });
+
   it('should work with function arguments', async () => {
     const { add, destroy: destroyBasic } = workerRequire<
       WorkerModule<typeof import('../fixtures/basic')>
@@ -112,20 +153,6 @@ describe('worker-require', () => {
     expect(result).toEqual(331160282);
 
     destroy();
-  });
-
-  it('should throw when a module exports a non-function', () => {
-    let thrown: Error | null = null;
-    try {
-      const { value } = workerRequire<typeof import('../fixtures/value')>(
-        '../dist/fixtures/value'
-      );
-      return value;
-    } catch (error) {
-      thrown = error as Error;
-    }
-
-    expect(thrown).not.toBe(null);
   });
 
   it('should handle an invalid require path', () => {
@@ -206,8 +233,13 @@ describe('worker-require', () => {
 type AssertErrorMessage<Expected, Error extends { message: Expected }> = Error;
 
 export type WorkerModuleErrorValue = AssertErrorMessage<
-  'Module should only export functions',
+  'Module should not export primitive values',
   WorkerModule<{ value: number }>['value']
+>;
+
+export type WorkerModuleErrorNestedValue = AssertErrorMessage<
+  'Module should not export primitive values',
+  WorkerModule<{ value: { nested: number } }>['value']['nested']
 >;
 
 export type WorkerModuleErrorFunctionArgFunction = AssertErrorMessage<

@@ -1,20 +1,14 @@
+import { TO_CLONEABLE } from './toCloneable';
+
 export type WorkerRequireOptions = {
   cache: boolean;
 };
 
-export type Obj = Record<PropertyKey, unknown>;
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Func = (...args: Array<any>) => any;
 
-export type FunctionNames<Module> = {
-  [Key in keyof Module]: Module[Key] extends Func ? Key : never;
-}[keyof Module];
-
-export type Functions<Module> = {
-  [Key in FunctionNames<Module>]: Module[Key] extends Func
-    ? Module[Key]
-    : never;
+export type CloneableInstance = {
+  [TO_CLONEABLE]?: () => WorkerModuleCloneable;
 };
 
 export type WorkerModuleError<
@@ -46,11 +40,13 @@ export type WorkerModuleError<
 export type WorkerModule<Module> = {
   [Key in keyof Module]: Module[Key] extends Func
     ? WorkerModuleFunction<Module[Key]>
-    : WorkerModuleError<
-        Module,
-        'Module should only export functions',
-        Module[Key]
-      >;
+    : Module[Key] extends CloneableValue
+    ? WorkerModuleError<
+        Module[Key],
+        'Module should not export primitive values',
+        Module
+      >
+    : WorkerModule<Module[Key]>;
 };
 
 export type WorkerModuleFunction<F extends Func> = F extends WorkerFunction<F>
@@ -161,10 +157,8 @@ export type WorkerPromise<P extends Promise<unknown>> = P extends Promise<
 // A value is a WorkerValue if it is an WorkerObject,
 // WorkerArray, WorkerFunc, WorkerSet, WorkerMap, Promise
 // or just a value (boolean/string/number/Date/RegExp/etc):
-export type WorkerValue<Value> = Value extends Obj
-  ? Value extends WorkerObject<Value>
-    ? Value
-    : WorkerObject<Value>
+export type WorkerValue<Value> = Value extends WorkerModuleCloneable
+  ? Value
   : Value extends Array<unknown>
   ? Value extends WorkerArray<Value>
     ? Value
@@ -185,42 +179,54 @@ export type WorkerValue<Value> = Value extends Obj
   ? Value extends WorkerPromise<Value>
     ? Value
     : WorkerPromise<Value>
-  : Value;
+  : Value extends WorkerObject<Value>
+  ? Value
+  : WorkerObject<Value>;
 
 // A AsyncWorkerModule is a WorkerModule that has been wrapped by Comlink, and all
-// the WorkerModule's exported functions now return a Promise:
+// the WorkerModule's exported properties are all asynchronous:
 export type AsyncWorkerModule<Module> = {
   [Key in keyof Module]: Module[Key] extends Func
     ? Module[Key] extends WorkerModuleFunction<Module[Key]>
       ? AsyncWorkerModuleFunction<Module[Key]>
       : WorkerModuleFunction<Module[Key]>
-    : WorkerModuleError<
+    : Module[Key] extends WorkerModuleCloneable
+    ? WorkerModuleError<
         Module,
         'Module must be a WorkerModule',
         WorkerModule<Module>
-      >;
+      >
+    : AsyncWorkerModule<Module[Key]>;
 } & {
   destroy: () => void;
 };
 
 export type AsyncWorkerModuleFunction<F extends Func> = (
-  ...args: AsyncWorkerArray<Parameters<F>> extends [...infer Arr] ? Arr : never
+  ...args: AsyncWorkerArray<Parameters<F>> extends Array<unknown>
+    ? AsyncWorkerArray<Parameters<F>>
+    : never
 ) => ReturnType<F> extends Promise<infer Return>
   ? Promise<Return>
   : Promise<ReturnType<F>>;
+
+export type AsyncWorkerModuleValue<V> = V extends Promise<unknown>
+  ? V
+  : Promise<V>;
 
 export type AsyncWorkerObject<O> = {
   [Key in keyof O]: AsyncWorkerValue<O[Key]>;
 };
 
-export type AsyncWorkerArray<A extends Array<unknown>> = A extends Array<
-  infer Item
->
-  ? Array<AsyncWorkerValue<Item>>
-  : never;
+export type AsyncWorkerArray<A extends Array<unknown>> = {
+  [Index in keyof A]: A[Index] extends AsyncWorkerValue<A[Index]>
+    ? AsyncWorkerValue<A[Index]>
+    : never;
+};
 
 export type AsyncWorkerFunction<F extends Func> = (
-  ...args: AsyncWorkerArray<Parameters<F>> extends [...infer Arr] ? Arr : never
+  ...args: AsyncWorkerArray<Parameters<F>> extends Array<unknown>
+    ? AsyncWorkerArray<Parameters<F>>
+    : never
 ) => AsyncWorkerValue<ReturnType<F>>;
 
 export type AsyncWorkerSet<S extends Set<unknown>> = S extends Set<infer Item>
@@ -240,8 +246,8 @@ export type AsyncWorkerPromise<P extends Promise<unknown>> = P extends Promise<
   ? AsyncWorkerValue<Value> | Promise<AsyncWorkerValue<Value>>
   : never;
 
-export type AsyncWorkerValue<Value> = Value extends Obj
-  ? AsyncWorkerObject<Value>
+export type AsyncWorkerValue<Value> = Value extends WorkerModuleCloneable
+  ? Value
   : Value extends Array<unknown>
   ? AsyncWorkerArray<Value>
   : Value extends Func
@@ -252,4 +258,30 @@ export type AsyncWorkerValue<Value> = Value extends Obj
   ? AsyncWorkerMap<Value>
   : Value extends Promise<unknown>
   ? AsyncWorkerPromise<Value>
-  : Value;
+  : AsyncWorkerObject<Value>;
+
+export type CloneableValue =
+  | undefined
+  | null
+  | number
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | Number
+  | boolean
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | Boolean
+  | string
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | String
+  | Date
+  | RegExp
+  | Blob
+  | File
+  | FileList
+  | ArrayBuffer
+  | ArrayBufferView;
+
+export type WorkerModuleCloneable = CloneableValue | CloneableObject;
+
+export interface CloneableObject {
+  [index: string]: WorkerModuleCloneable;
+}
