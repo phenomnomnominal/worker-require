@@ -150,7 +150,7 @@ export type WorkerPromise<
   IsArgument = false
 > = P extends Promise<infer Value>
   ? Value extends WorkerValue<Value, IsArgument>
-    ? P
+    ? Promise<Value>
     : WorkerModuleError<
         P,
         'Promise value should not contain synchronous functions',
