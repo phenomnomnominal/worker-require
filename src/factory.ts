@@ -42,3 +42,7 @@ export function destroyWorker(requirePath: string): void {
   cache.delete(requirePath);
   cached.forEach((api) => api[releaseProxy]());
 }
+
+export function destroyAll(): void {
+  Array.from(cache.keys()).forEach((requirePath) => destroyWorker(requirePath));
+}
