@@ -145,12 +145,12 @@ export type WorkerMap<
       >
   : never;
 
-export type WorkerPromise<
+export type WorkerPromiseValue<
   P extends Promise<unknown>,
   IsArgument = false
 > = P extends Promise<infer Value>
   ? Value extends WorkerValue<Value, IsArgument>
-    ? Promise<Value>
+    ? Value
     : WorkerModuleError<
         P,
         'Promise value should not contain synchronous functions',
@@ -177,9 +177,9 @@ export type WorkerArgument<Value> = Value extends WorkerModuleCloneable
     ? Value
     : WorkerMap<Value, true>
   : Value extends Promise<unknown>
-  ? Value extends WorkerPromise<Value, true>
-    ? Value
-    : WorkerPromise<Value, true>
+  ? Value extends Promise<WorkerPromiseValue<Value, true>>
+    ? Promise<WorkerPromiseValue<Value>>
+    : WorkerPromiseValue<Value, true>
   : Value extends WorkerObject<Value, true>
   ? Value
   : WorkerObject<Value, true>;
@@ -205,9 +205,9 @@ export type WorkerValue<Value, IsArgument = false> = IsArgument extends true
     ? Value
     : WorkerMap<Value>
   : Value extends Promise<unknown>
-  ? Value extends WorkerPromise<Value>
-    ? Value
-    : WorkerPromise<Value>
+  ? Value extends Promise<WorkerPromiseValue<Value>>
+    ? Promise<WorkerPromiseValue<Value>>
+    : WorkerPromiseValue<Value>
   : Value extends WorkerObject<Value>
   ? Value
   : WorkerObject<Value>;
@@ -313,3 +313,25 @@ export type WorkerModuleCloneable = CloneableValue | CloneableObject;
 export interface CloneableObject {
   [index: string]: WorkerModuleCloneable;
 }
+
+export type A = Promise<string | number> extends Promise<infer Value>
+  ? Value extends string | number
+    ? Array<Value>
+    : never
+  : never;
+
+export type B = Promise<string | number> extends Promise<infer Value>
+  ? Value
+  : never;
+export type C = B extends string | number ? 1 : 0;
+export type D = B extends string | number ? Array<B> : 0;
+
+export type PromiseValue<P extends Promise<unknown>> = P extends Promise<
+  infer Value
+>
+  ? Value extends string | number
+    ? Value
+    : never
+  : never;
+
+export type F = Promise<PromiseValue<Promise<string | number>>>;
