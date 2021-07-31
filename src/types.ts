@@ -1,4 +1,4 @@
-import { TO_CLONEABLE } from './toCloneable';
+import { WorkerModuleCloneable } from './cloneable';
 
 export type WorkerRequireOptions = {
   cache: boolean;
@@ -6,10 +6,6 @@ export type WorkerRequireOptions = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Func = (...args: Array<any>) => any;
-
-export type CloneableInstance = {
-  [TO_CLONEABLE]?: () => WorkerModuleCloneable;
-};
 
 export type WorkerModuleError<
   Type,
@@ -40,7 +36,7 @@ export type WorkerModuleError<
 export type WorkerModule<Module> = {
   [Key in keyof Module]: Module[Key] extends Func
     ? WorkerFunction<Module[Key]>
-    : Module[Key] extends CloneableValue
+    : Module[Key] extends WorkerModuleCloneable
     ? WorkerModuleError<
         Module[Key],
         'Module should not export primitive values',
@@ -290,48 +286,3 @@ export type AsyncWorkerValue<Value> = Value extends WorkerModuleCloneable
   : Value extends Promise<unknown>
   ? AsyncWorkerPromise<Value>
   : AsyncWorkerObject<Value>;
-
-export type CloneableValue =
-  | undefined
-  | null
-  | number
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  | Number
-  | boolean
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  | Boolean
-  | string
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  | String
-  | Date
-  | RegExp
-  | ArrayBuffer
-  | ArrayBufferView;
-
-export type WorkerModuleCloneable = CloneableValue | CloneableObject;
-
-export interface CloneableObject {
-  [index: string]: WorkerModuleCloneable;
-}
-
-export type A = Promise<string | number> extends Promise<infer Value>
-  ? Value extends string | number
-    ? Array<Value>
-    : never
-  : never;
-
-export type B = Promise<string | number> extends Promise<infer Value>
-  ? Value
-  : never;
-export type C = B extends string | number ? 1 : 0;
-export type D = B extends string | number ? Array<B> : 0;
-
-export type PromiseValue<P extends Promise<unknown>> = P extends Promise<
-  infer Value
->
-  ? Value extends string | number
-    ? Value
-    : never
-  : never;
-
-export type F = Promise<PromiseValue<Promise<string | number>>>;

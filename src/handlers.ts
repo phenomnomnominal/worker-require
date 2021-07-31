@@ -2,25 +2,23 @@ import { ok } from 'assert';
 import { transferHandlers, expose, wrap } from 'comlink';
 import nodeEndpoint from 'comlink/dist/umd/node-adapter';
 import { MessageChannel, MessagePort } from 'worker_threads';
-import { TO_CLONEABLE } from './toCloneable';
-import { CloneableInstance } from './types';
 
-import { hasFunctions, isCloneable, isFunction, isPromise } from './utils';
+import { CloneableInstance, isCloneable, TO_CLONEABLE } from './cloneable';
+
+import { hasFunctions, isFunction, isPromise } from './utils';
 
 export function setHandlers(): void {
-  const proxyHandler = transferHandlers.get('proxy');
-  const throwHandler = transferHandlers.get('throw');
-
-  ok(proxyHandler && throwHandler);
-
   transferHandlers.set('cloneable', {
     canHandle: (val): val is unknown => !!isCloneable(val),
-    serialize: (val) => [(val as CloneableInstance)[TO_CLONEABLE]?.(), []],
+    serialize: (val) => [(val as CloneableInstance)[TO_CLONEABLE](), []],
     deserialize: (obj) => obj,
   });
 
   const cloneableHandle = transferHandlers.get('cloneable');
-  ok(cloneableHandle);
+  const proxyHandler = transferHandlers.get('proxy');
+  const throwHandler = transferHandlers.get('throw');
+
+  ok(cloneableHandle && proxyHandler && throwHandler);
 
   transferHandlers.set('proxy', {
     canHandle(val): val is unknown {

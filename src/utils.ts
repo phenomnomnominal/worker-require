@@ -1,5 +1,4 @@
-import { TO_CLONEABLE } from './toCloneable';
-import { CloneableInstance, Func } from './types';
+import { Func } from './types';
 
 export function isFunction(func: unknown): func is Func {
   return typeof func === 'function';
@@ -19,10 +18,6 @@ export function hasFunctions(val: unknown): boolean {
       return isFunction(property) || hasFunctions(property);
     })
   );
-}
-
-export function isCloneable(val: unknown): val is CloneableInstance {
-  return val != null && !!(val as CloneableInstance)[TO_CLONEABLE];
 }
 
 function isObject(val: unknown): boolean {

@@ -1,4 +1,9 @@
-import { workerRequire, WorkerModule, AsyncWorkerModule } from '../src/index';
+import {
+  workerRequire,
+  WorkerModule,
+  AsyncWorkerModule,
+  TO_CLONEABLE,
+} from '../src/index';
 
 import * as basic from '../fixtures/basic';
 
@@ -238,7 +243,7 @@ export type WorkerModuleErrorValue = AssertErrorMessage<
 
 export type WorkerModuleErrorNestedValue = AssertErrorMessage<
   'Module should not export primitive values',
-  WorkerModule<{ value: { nested: number } }>['value']['nested']
+  WorkerModule<{ value: { nested: number } }>['value']
 >;
 
 export type WorkerModuleErrorFunctionArgFunction = AssertErrorMessage<
@@ -292,10 +297,23 @@ export type WorkerModuleErrorFunctionResultObjectFunctionArg = AssertErrorMessag
 
 type AssertType<Expected, Recieved extends Expected> = Recieved;
 
-export type TransformSyncToAsync = AssertType<
+export type ALlowSyncToAsync = AssertType<
   () => Promise<string>,
   AsyncWorkerModule<{
     init(): string;
+  }>['init']
+>;
+
+class Cloneable {
+  [TO_CLONEABLE](): string {
+    return 'cloneable';
+  }
+}
+
+export type AllowCloneable = AssertType<
+  () => Promise<Cloneable>,
+  AsyncWorkerModule<{
+    init(): Cloneable;
   }>['init']
 >;
 

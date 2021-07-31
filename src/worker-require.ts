@@ -3,7 +3,7 @@ import path from 'path';
 
 import { getWorker, destroyWorker } from './factory';
 import { setHandlers } from './handlers';
-import { TO_CLONEABLE } from './toCloneable';
+import { TO_CLONEABLE } from './cloneable';
 import { AsyncWorkerModule, WorkerRequireOptions } from './types';
 
 setHandlers();
