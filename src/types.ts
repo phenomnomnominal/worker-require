@@ -7,19 +7,21 @@ export type WorkerRequireOptions = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Func = (...args: Array<any>) => any;
 
+export type Unknown<U> = keyof U extends never ? U : never;
+
 export type WorkerModuleError<
   Type,
   Message,
   Details = null
 > = Details extends null
   ? {
-      message: Message;
-      type: Type;
+      errorMessage: Message;
+      errorType: Type;
     }
   : {
-      message: Message;
-      type: Type;
-      details: Details;
+      errorMessage: Message;
+      errorType: Type;
+      errorDetails: Details;
     };
 
 // A WorkerModule is a Module that where all the functions passed to the Module
@@ -141,6 +143,16 @@ export type WorkerMap<
       >
   : never;
 
+export type WorkerError<E extends Error> = keyof E extends keyof Error
+  ? E
+  : WorkerModuleError<
+      E,
+      `Custom Error type has property that will not be transferred: "${Exclude<
+        keyof E & string,
+        keyof Error & string
+      >}"`
+    >;
+
 export type WorkerPromiseValue<
   P extends Promise<unknown>,
   IsArgument = false
@@ -200,10 +212,16 @@ export type WorkerValue<Value, IsArgument = false> = IsArgument extends true
   ? Value extends WorkerMap<Value>
     ? Value
     : WorkerMap<Value>
+  : Value extends Error
+  ? Value extends WorkerError<Value>
+    ? Value
+    : WorkerError<Value>
   : Value extends Promise<unknown>
   ? Value extends Promise<WorkerPromiseValue<Value>>
     ? Promise<WorkerPromiseValue<Value>>
     : WorkerPromiseValue<Value>
+  : Value extends Unknown<Value>
+  ? Value
   : Value extends WorkerObject<Value>
   ? Value
   : WorkerObject<Value>;
@@ -273,6 +291,10 @@ export type AsyncWorkerPromise<P extends Promise<unknown>> = P extends Promise<
   ? AsyncWorkerValue<Value> | Promise<AsyncWorkerValue<Value>>
   : never;
 
+export type AsyncWorkerUnknown<U> = keyof U extends never
+  ? unknown | Promise<unknown>
+  : never;
+
 export type AsyncWorkerValue<Value> = Value extends WorkerModuleCloneable
   ? Value
   : Value extends Array<unknown>
@@ -285,4 +307,6 @@ export type AsyncWorkerValue<Value> = Value extends WorkerModuleCloneable
   ? AsyncWorkerMap<Value>
   : Value extends Promise<unknown>
   ? AsyncWorkerPromise<Value>
+  : Value extends Unknown<Value>
+  ? AsyncWorkerUnknown<Value>
   : AsyncWorkerObject<Value>;

@@ -234,7 +234,10 @@ describe('worker-require', () => {
 });
 
 // Types tests:
-type AssertErrorMessage<Expected, Error extends { message: Expected }> = Error;
+type AssertErrorMessage<
+  Expected,
+  Error extends { errorMessage: Expected }
+> = Error;
 
 export type WorkerModuleErrorValue = AssertErrorMessage<
   'Module should not export primitive values',
@@ -297,7 +300,7 @@ export type WorkerModuleErrorFunctionResultObjectFunctionArg = AssertErrorMessag
 
 type AssertType<Expected, Recieved extends Expected> = Recieved;
 
-export type ALlowSyncToAsync = AssertType<
+export type AllowSyncToAsync = AssertType<
   () => Promise<string>,
   AsyncWorkerModule<{
     init(): string;
