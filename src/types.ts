@@ -1,15 +1,67 @@
-import { WorkerModuleCloneable } from './cloneable';
+import { Remote } from 'comlink';
+import { Worker } from 'worker_threads';
+import { TO_CLONEABLE } from './constants';
+
+// OPTIONS:
 
 export type WorkerRequireOptions = {
   cache: boolean;
 };
 
+// CACHE:
+
+export type WorkerRequireCacheItem<RemoteType> = {
+  remote: Remote<RemoteType>;
+  worker: Worker;
+};
+
+export type WorkerRequireCache = Map<
+  string,
+  Array<WorkerRequireCacheItem<unknown>>
+>;
+
+// UTILS:
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type Func = (...args: Array<any>) => any;
+export type WorkerRequireFunc = (...args: Array<any>) => any;
 
-export type Unknown<U> = keyof U extends never ? U : never;
+export type WorkerRequireUnknown<U> = keyof U extends never ? U : never;
 
-export type WorkerModuleError<
+// CLONEABLE:
+
+export type WorkerRequireCloneable =
+  | WorkerRequireCloneableInstance
+  | WorkerRequireCloneableObject
+  | WorkerRequireCloneableValue;
+
+export type WorkerRequireCloneableInstance = {
+  [TO_CLONEABLE]: () => WorkerRequireCloneable;
+};
+
+type WorkerRequireCloneableObject = {
+  [index: string]: WorkerRequireCloneable;
+};
+
+type WorkerRequireCloneableValue =
+  | undefined
+  | null
+  | number
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | Number
+  | boolean
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | Boolean
+  | string
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | String
+  | Date
+  | RegExp
+  | ArrayBuffer
+  | ArrayBufferView;
+
+// ERROR:
+
+export type WorkerRequireError<
   Type,
   Message,
   Details = null
@@ -24,7 +76,9 @@ export type WorkerModuleError<
       errorDetails: Details;
     };
 
-// A WorkerModule is a Module that where all the functions passed to the Module
+// MODULE VALIDATION:
+
+// A WorkerRequireModule is a Module that where all the functions passed to the Module
 // must return a Promise, whether they are arguments, properties, or Array/Set/Map items.
 //
 // This is important because Comlink will transform all transferred functions from:
@@ -35,30 +89,31 @@ export type WorkerModuleError<
 //
 // If the given Module doesn't conform to this, that indicates that is expects a function
 // to be synchronous but it will *actually* be async when it gets it!
-export type WorkerModule<Module> = {
-  [Key in keyof Module]: Module[Key] extends Func
+
+export type WorkerRequireModule<Module> = {
+  [Key in keyof Module]: Module[Key] extends WorkerRequireFunc
     ? WorkerFunction<Module[Key]>
-    : Module[Key] extends WorkerModuleCloneable
-    ? WorkerModuleError<
+    : Module[Key] extends WorkerRequireCloneable
+    ? WorkerRequireError<
         Module[Key],
         'Module should not export primitive values',
         Module
       >
-    : WorkerModule<Module[Key]>;
+    : WorkerRequireModule<Module[Key]>;
 };
 
-export type WorkerFunction<F extends Func> = F extends (
+export type WorkerFunction<F extends WorkerRequireFunc> = F extends (
   ...args: infer Args
 ) => infer Return
   ? Args extends WorkerArguments<Args>
     ? Return extends WorkerValue<Return>
       ? F
-      : WorkerModuleError<
+      : WorkerRequireError<
           F,
           'Function return value should not contain synchronous functions',
           WorkerValue<Return>
         >
-    : WorkerModuleError<
+    : WorkerRequireError<
         F,
         'Function arguments should not contain synchronous functions',
         WorkerArguments<Args>
@@ -68,7 +123,7 @@ export type WorkerFunction<F extends Func> = F extends (
 export type WorkerObject<O, IsArgument = false> = {
   [Key in keyof O]: O[Key] extends WorkerValue<O[Key], IsArgument>
     ? O[Key]
-    : WorkerModuleError<
+    : WorkerRequireError<
         O,
         'Object properties should not contain synchronous functions',
         WorkerValue<O[Key], IsArgument>
@@ -78,7 +133,7 @@ export type WorkerObject<O, IsArgument = false> = {
 export type WorkerArray<A extends Array<unknown>, IsArgument = false> = {
   [Index in keyof A]: A[Index] extends WorkerValue<A[Index], IsArgument>
     ? A[Index]
-    : WorkerModuleError<
+    : WorkerRequireError<
         A,
         'Array should not contain synchronous functions',
         WorkerValue<A[Index], IsArgument>
@@ -88,26 +143,26 @@ export type WorkerArray<A extends Array<unknown>, IsArgument = false> = {
 export type WorkerArguments<A extends Array<unknown>> = {
   [Index in keyof A]: A[Index] extends WorkerArgument<A[Index]>
     ? A[Index]
-    : WorkerModuleError<
+    : WorkerRequireError<
         A,
         'Function arguments should not be synchronous functions',
         WorkerArgument<A[Index]>
       >;
 };
 
-export type WorkerFunctionArgument<F extends Func> = F extends (
+export type WorkerFunctionArgument<F extends WorkerRequireFunc> = F extends (
   ...args: infer Args
 ) => infer Return
   ? Args extends WorkerArguments<Args>
     ? Return extends Promise<infer Value>
       ? Value extends WorkerValue<Value>
         ? F
-        : WorkerModuleError<
+        : WorkerRequireError<
             F,
             'Function return value should not contain synchronous functions',
             WorkerValue<Value>
           >
-      : WorkerModuleError<F, 'Function should return a Promise'>
+      : WorkerRequireError<F, 'Function should return a Promise'>
     : WorkerArguments<Args>
   : never;
 
@@ -117,7 +172,7 @@ export type WorkerSet<
 > = S extends Set<infer Item>
   ? Item extends WorkerValue<Item, IsArgument>
     ? S
-    : WorkerModuleError<
+    : WorkerRequireError<
         S,
         'Set should not contain synchronous functions',
         WorkerValue<Item, IsArgument>
@@ -131,12 +186,12 @@ export type WorkerMap<
   ? Key extends WorkerValue<Key, IsArgument>
     ? Value extends WorkerValue<Value, IsArgument>
       ? M
-      : WorkerModuleError<
+      : WorkerRequireError<
           M,
           'Map value should not contain synchronous functions',
           WorkerValue<Value, IsArgument>
         >
-    : WorkerModuleError<
+    : WorkerRequireError<
         M,
         'Map key should not contain synchronous functions',
         WorkerValue<Key, IsArgument>
@@ -145,7 +200,7 @@ export type WorkerMap<
 
 export type WorkerError<E extends Error> = keyof E extends keyof Error
   ? E
-  : WorkerModuleError<
+  : WorkerRequireError<
       E,
       `Custom Error type has property that will not be transferred: "${Exclude<
         keyof E & string,
@@ -159,20 +214,20 @@ export type WorkerPromiseValue<
 > = P extends Promise<infer Value>
   ? Value extends WorkerValue<Value, IsArgument>
     ? Value
-    : WorkerModuleError<
+    : WorkerRequireError<
         P,
         'Promise value should not contain synchronous functions',
         WorkerValue<Value, IsArgument>
       >
   : never;
 
-export type WorkerArgument<Value> = Value extends WorkerModuleCloneable
+export type WorkerArgument<Value> = Value extends WorkerRequireCloneable
   ? Value
   : Value extends Array<unknown>
   ? Value extends WorkerArray<Value, true>
     ? Value
     : WorkerArray<Value, true>
-  : Value extends Func
+  : Value extends WorkerRequireFunc
   ? Value extends WorkerFunctionArgument<Value>
     ? Value
     : WorkerFunctionArgument<Value>
@@ -194,13 +249,13 @@ export type WorkerArgument<Value> = Value extends WorkerModuleCloneable
 
 export type WorkerValue<Value, IsArgument = false> = IsArgument extends true
   ? WorkerArgument<Value>
-  : Value extends WorkerModuleCloneable
+  : Value extends WorkerRequireCloneable
   ? Value
   : Value extends Array<unknown>
   ? Value extends WorkerArray<Value>
     ? Value
     : WorkerArray<Value>
-  : Value extends Func
+  : Value extends WorkerRequireFunc
   ? Value extends WorkerFunction<Value>
     ? Value
     : WorkerFunction<Value>
@@ -220,31 +275,33 @@ export type WorkerValue<Value, IsArgument = false> = IsArgument extends true
   ? Value extends Promise<WorkerPromiseValue<Value>>
     ? Promise<WorkerPromiseValue<Value>>
     : WorkerPromiseValue<Value>
-  : Value extends Unknown<Value>
+  : Value extends WorkerRequireUnknown<Value>
   ? Value
   : Value extends WorkerObject<Value>
   ? Value
   : WorkerObject<Value>;
 
-// A AsyncWorkerModule is a WorkerModule that has been wrapped by Comlink, and all
-// the WorkerModule's exported properties are all asynchronous:
-export type AsyncWorkerModule<Module> = {
-  [Key in keyof Module]: Module[Key] extends Func
+// MODULE ASYNCIFICATION:
+
+// A WorkerRequireModuleAsync is a WorkerRequireModule that has been wrapped by Comlink, and all
+// the WorkerRequireModule's exported properties are all asynchronous:
+export type WorkerRequireModuleAsync<Module> = {
+  [Key in keyof Module]: Module[Key] extends WorkerRequireFunc
     ? Module[Key] extends WorkerFunction<Module[Key]>
       ? AsyncWorkerModuleFunction<Module[Key]>
       : WorkerFunction<Module[Key]>
-    : Module[Key] extends WorkerModuleCloneable
-    ? WorkerModuleError<
+    : Module[Key] extends WorkerRequireCloneable
+    ? WorkerRequireError<
         Module,
-        'Module must be a WorkerModule',
-        WorkerModule<Module>
+        'Module must be a WorkerRequireModule',
+        WorkerRequireModule<Module>
       >
-    : AsyncWorkerModule<Module[Key]>;
+    : WorkerRequireModuleAsync<Module[Key]>;
 } & {
   destroy: () => void;
 };
 
-export type AsyncWorkerModuleFunction<F extends Func> = (
+export type AsyncWorkerModuleFunction<F extends WorkerRequireFunc> = (
   ...args: AsyncWorkerArray<Parameters<F>> extends Array<unknown>
     ? AsyncWorkerArray<Parameters<F>>
     : never
@@ -266,7 +323,7 @@ export type AsyncWorkerArray<A extends Array<unknown>> = {
     : never;
 };
 
-export type AsyncWorkerFunction<F extends Func> = (
+export type AsyncWorkerFunction<F extends WorkerRequireFunc> = (
   ...args: AsyncWorkerArray<Parameters<F>> extends Array<unknown>
     ? AsyncWorkerArray<Parameters<F>>
     : never
@@ -295,11 +352,11 @@ export type AsyncWorkerUnknown<U> = keyof U extends never
   ? unknown | Promise<unknown>
   : never;
 
-export type AsyncWorkerValue<Value> = Value extends WorkerModuleCloneable
+export type AsyncWorkerValue<Value> = Value extends WorkerRequireCloneable
   ? Value
   : Value extends Array<unknown>
   ? AsyncWorkerArray<Value>
-  : Value extends Func
+  : Value extends WorkerRequireFunc
   ? AsyncWorkerFunction<Value>
   : Value extends Set<unknown>
   ? AsyncWorkerSet<Value>
@@ -307,6 +364,6 @@ export type AsyncWorkerValue<Value> = Value extends WorkerModuleCloneable
   ? AsyncWorkerMap<Value>
   : Value extends Promise<unknown>
   ? AsyncWorkerPromise<Value>
-  : Value extends Unknown<Value>
+  : Value extends WorkerRequireUnknown<Value>
   ? AsyncWorkerUnknown<Value>
   : AsyncWorkerObject<Value>;
