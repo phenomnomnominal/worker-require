@@ -73,7 +73,6 @@ export type WorkerRequireError<
   : {
       errorMessage: Message;
       errorType: Type;
-      errorDetails: Details;
     };
 
 // MODULE VALIDATION:
@@ -145,7 +144,7 @@ export type WorkerArguments<A extends Array<unknown>> = {
     ? A[Index]
     : WorkerRequireError<
         A,
-        'Function arguments should not be synchronous functions',
+        'Arguments should not be synchronous functions',
         WorkerArgument<A[Index]>
       >;
 };
@@ -298,7 +297,7 @@ export type WorkerRequireModuleAsync<Module> = {
       >
     : WorkerRequireModuleAsync<Module[Key]>;
 } & {
-  destroy: () => void;
+  destroy: () => Promise<void>;
 };
 
 export type AsyncWorkerModuleFunction<F extends WorkerRequireFunc> = (

@@ -24,17 +24,17 @@ describe('worker-require', () => {
     expect(addResult).toEqual(3);
     expect(fibResult).toEqual(165580141);
 
-    destroy();
+    await destroy();
   });
 
-  it('should let you destroy even if it is not used', () => {
+  it('should let you destroy even if it is not used', async () => {
     const { destroy } = workerRequire<
       WorkerRequireModule<typeof import('../fixtures/basic')>
     >('../dist/fixtures/basic');
 
     let thrown: Error | null = null;
     try {
-      destroy();
+      await destroy();
     } catch (error) {
       thrown = error as Error;
     }
@@ -51,7 +51,7 @@ describe('worker-require', () => {
 
     expect(result).toEqual('done');
 
-    destroy();
+    await destroy();
   });
 
   it('should work with arrays', async () => {
@@ -63,7 +63,7 @@ describe('worker-require', () => {
 
     expect(result).toEqual([1, 2, 3]);
 
-    destroy();
+    await destroy();
   });
 
   it('should work with weird values', async () => {
@@ -75,7 +75,7 @@ describe('worker-require', () => {
 
     expect(result).toEqual([null, undefined, NaN]);
 
-    destroy();
+    await destroy();
   });
 
   it('should work with instances', async () => {
@@ -87,7 +87,7 @@ describe('worker-require', () => {
 
     expect(result).toEqual(12);
 
-    destroy();
+    await destroy();
   });
 
   it('should work with objects', async () => {
@@ -99,7 +99,7 @@ describe('worker-require', () => {
 
     expect(result).toEqual(81);
 
-    destroy();
+    await destroy();
   });
 
   it('should work with async functions', async () => {
@@ -114,7 +114,7 @@ describe('worker-require', () => {
 
     expect(result).toEqual(obj);
 
-    destroy();
+    await destroy();
   });
 
   it('should work with TO_CLONEABLE', async () => {
@@ -129,7 +129,7 @@ describe('worker-require', () => {
     // @ts-expect-error check that this isn't a proxy:
     expect(result.c).not.toBeDefined();
 
-    destroy();
+    await destroy();
   });
 
   it('should work with function arguments', async () => {
@@ -144,8 +144,8 @@ describe('worker-require', () => {
 
     expect(result).toEqual(3);
 
-    destroyBasic();
-    destroyFunctions();
+    await destroyBasic();
+    await destroyFunctions();
   });
 
   it('should work with deep function arguments', async () => {
@@ -160,8 +160,8 @@ describe('worker-require', () => {
 
     expect(result).toEqual(3);
 
-    destroyBasic();
-    destroyFunctions();
+    await destroyBasic();
+    await destroyFunctions();
   });
 
   it('should handle functions that require other modules', async () => {
@@ -173,7 +173,7 @@ describe('worker-require', () => {
 
     expect(result).toEqual(331160282);
 
-    destroy();
+    await destroy();
   });
 
   it('should handle an invalid require path', () => {
@@ -185,6 +185,23 @@ describe('worker-require', () => {
     }
 
     expect(thrown).not.toBe(null);
+  });
+
+  it('should work when passing a worker modules', async () => {
+    const basic = workerRequire<
+      WorkerRequireModule<typeof import('../fixtures/basic')>
+    >('../dist/fixtures/basic');
+
+    const moduleArg = workerRequire<
+      WorkerRequireModule<typeof import('../fixtures/module-arg')>
+    >('../dist/fixtures/module-arg');
+
+    const fibResult = await moduleArg.fib(basic, 40);
+
+    expect(fibResult).toEqual(165580141);
+
+    await basic.destroy();
+    await moduleArg.destroy();
   });
 
   it('should handle when a worker throw an error', async () => {
@@ -201,7 +218,7 @@ describe('worker-require', () => {
 
     expect(thrown).not.toBeNull();
 
-    destroy();
+    await destroy();
   });
 
   it('actualy makes shit faster', async () => {
@@ -234,10 +251,10 @@ describe('worker-require', () => {
 
     expect(parallelTime * 2).toBeLessThan(serialTime);
 
-    worker1.destroy();
-    worker2.destroy();
-    worker3.destroy();
-    worker4.destroy();
+    await worker1.destroy();
+    await worker2.destroy();
+    await worker3.destroy();
+    await worker4.destroy();
   });
 
   it('handles passing a sync or async function type to an async function arg', async () => {
@@ -253,7 +270,7 @@ describe('worker-require', () => {
     expect(result1).toEqual(2);
     expect(result2).toEqual(2);
 
-    destroy();
+    await destroy();
   });
 });
 

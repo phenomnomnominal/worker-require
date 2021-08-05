@@ -7,9 +7,14 @@ import { TO_CLONEABLE } from './constants';
 import { WorkerRequireCloneableInstance, WorkerRequireFunc } from './types';
 
 export function setHandlers(): void {
+  const proxyHandler = transferHandlers.get('proxy');
+  const throwHandler = transferHandlers.get('throw');
+
+  assert(proxyHandler && throwHandler);
+
   transferHandlers.set('cloneable', {
     canHandle: (val): val is unknown => {
-      return !!isCloneable(val);
+      return !proxyHandler.canHandle(val) && isCloneable(val);
     },
     serialize: (val: WorkerRequireCloneableInstance) => {
       return [val[TO_CLONEABLE](), []];
@@ -18,10 +23,8 @@ export function setHandlers(): void {
   });
 
   const cloneableHandle = transferHandlers.get('cloneable');
-  const proxyHandler = transferHandlers.get('proxy');
-  const throwHandler = transferHandlers.get('throw');
 
-  assert(cloneableHandle && proxyHandler && throwHandler);
+  assert(cloneableHandle);
 
   transferHandlers.set('proxy', {
     canHandle(val): val is unknown {

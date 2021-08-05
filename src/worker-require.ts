@@ -32,8 +32,8 @@ export function workerRequire<Module>(
   const idPath = path.resolve(path.dirname(sourcePath), id);
   const requirePath = require.resolve(idPath);
 
-  function destroy(): void {
-    destroyWorker(requirePath);
+  async function destroy(): Promise<void> {
+    await destroyWorker(requirePath);
   }
 
   const api = getWorker<Module>(requirePath, options);
@@ -91,14 +91,16 @@ function createWorker<Module = unknown>(requirePath: string): Remote<Module> {
   return remote;
 }
 
-function destroyWorker(requirePath: string): void {
+async function destroyWorker(requirePath: string): Promise<void> {
   const cached = cache.get(requirePath);
   if (!cached) {
     return;
   }
   cache.delete(requirePath);
-  cached.forEach((cacheItem) => {
-    void cacheItem.remote[releaseProxy]();
-    void cacheItem.worker.terminate();
-  });
+  await Promise.all(
+    cached.map(async (cacheItem) => {
+      cacheItem.remote[releaseProxy]();
+      await cacheItem.worker.terminate();
+    })
+  );
 }
