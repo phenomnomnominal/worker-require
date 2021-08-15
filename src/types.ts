@@ -10,14 +10,14 @@ export type WorkerRequireOptions = {
 
 // CACHE:
 
-export type WorkerRequireCacheItem<RemoteType> = {
+export type WorkerRequireHandle<RemoteType> = {
   remote: Remote<RemoteType>;
   worker: Worker;
 };
 
-export type WorkerRequireCache = Map<
+export type WorkerRequireHandles = Map<
   string,
-  Array<WorkerRequireCacheItem<unknown>>
+  Array<WorkerRequireHandle<unknown>>
 >;
 
 // UTILS:

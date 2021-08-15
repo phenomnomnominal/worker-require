@@ -1,5 +1,5 @@
 import callsite from 'callsite';
-import { releaseProxy, Remote, wrap } from 'comlink';
+import { releaseProxy, wrap } from 'comlink';
 import nodeEndpoint from 'comlink/dist/umd/node-adapter';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
@@ -7,7 +7,8 @@ import { Worker } from 'worker_threads';
 import { TO_CLONEABLE, WORKER_PATH } from './constants';
 import { setHandlers } from './handlers';
 import {
-  WorkerRequireCache,
+  WorkerRequireHandles,
+  WorkerRequireHandle,
   WorkerRequireModuleAsync,
   WorkerRequireOptions,
 } from './types';
@@ -17,9 +18,11 @@ setHandlers();
 export function createWorkerRequire<Module>(
   id: string,
   options?: WorkerRequireOptions
-) {
+): () => WorkerRequireModuleAsync<Module> {
+  const [, call] = callsite();
+  const sourcePath = call.getFileName();
   return (): WorkerRequireModuleAsync<Module> =>
-    workerRequire<Module>(id, options);
+    createProxy<Module>(sourcePath, id, options);
 }
 
 export function workerRequire<Module>(
@@ -28,15 +31,22 @@ export function workerRequire<Module>(
 ): WorkerRequireModuleAsync<Module> {
   const [, call] = callsite();
   const sourcePath = call.getFileName();
+  return createProxy<Module>(sourcePath, id, options);
+}
 
+function createProxy<Module>(
+  sourcePath: string,
+  id: string,
+  options: WorkerRequireOptions = { cache: true }
+): WorkerRequireModuleAsync<Module> {
   const idPath = path.resolve(path.dirname(sourcePath), id);
   const requirePath = require.resolve(idPath);
 
-  async function destroy(): Promise<void> {
-    await destroyWorker(requirePath);
-  }
+  const handle = getWorker<Module>(requirePath, options);
 
-  const api = getWorker<Module>(requirePath, options);
+  async function destroy(): Promise<void> {
+    await destroyWorker(requirePath, handle);
+  }
 
   return new Proxy({} as WorkerRequireModuleAsync<Module>, {
     get(_: WorkerRequireModuleAsync<Module>, name: string | symbol): unknown {
@@ -54,13 +64,13 @@ export function workerRequire<Module>(
           }
           /* eslint-disable @typescript-eslint/no-unsafe-member-access */
           // @ts-expect-error Proxy magic, hard to type:
-          return api[name][propertyName];
+          return handle.remote[name][propertyName];
           /* eslint-enable @typescript-eslint/no-unsafe-member-access */
         },
         apply(_: unknown, __: unknown, args: Array<unknown>): unknown {
           /* eslint-disable @typescript-eslint/no-unsafe-call */
           // @ts-expect-error Proxy magic, hard to type:
-          return api[name](...args);
+          return handle.remote[name](...args);
           /* eslint-enable @typescript-eslint/no-unsafe-call */
         },
       });
@@ -68,39 +78,44 @@ export function workerRequire<Module>(
   });
 }
 
-const cache = new Map() as WorkerRequireCache;
+const HANDLES = new Map() as WorkerRequireHandles;
 
 function getWorker<Module = unknown>(
   requirePath: string,
   options: WorkerRequireOptions
-): Remote<Module> {
-  const cached = cache.get(requirePath);
+): WorkerRequireHandle<Module> {
+  const cached = HANDLES.get(requirePath);
   if (options.cache && cached) {
-    const [cacheItem] = cached;
-    return cacheItem.remote as Remote<Module>;
+    const [cachedItem] = cached;
+    return cachedItem as WorkerRequireHandle<Module>;
   }
   return createWorker<Module>(requirePath);
 }
 
-function createWorker<Module = unknown>(requirePath: string): Remote<Module> {
-  const cached = cache.get(requirePath) || [];
+function createWorker<Module = unknown>(
+  requirePath: string
+): WorkerRequireHandle<Module> {
+  const cached = HANDLES.get(requirePath) || [];
   const worker = new Worker(WORKER_PATH, { workerData: requirePath });
   const remote = wrap<Module>(nodeEndpoint(worker));
-  cached.push({ remote, worker });
-  cache.set(requirePath, cached);
-  return remote;
+  const handle = { remote, worker };
+  cached.push(handle);
+  HANDLES.set(requirePath, cached);
+  return handle;
 }
 
-async function destroyWorker(requirePath: string): Promise<void> {
-  const cached = cache.get(requirePath);
+async function destroyWorker(
+  requirePath: string,
+  handle: WorkerRequireHandle<unknown>
+): Promise<void> {
+  const cached = HANDLES.get(requirePath);
   if (!cached) {
     return;
   }
-  cache.delete(requirePath);
-  await Promise.all(
-    cached.map(async (cacheItem) => {
-      cacheItem.remote[releaseProxy]();
-      await cacheItem.worker.terminate();
-    })
-  );
+  cached.splice(cached.indexOf(handle), 1);
+  if (cached.length === 0) {
+    HANDLES.delete(requirePath);
+  }
+  handle.remote[releaseProxy]();
+  await handle.worker.terminate();
 }
