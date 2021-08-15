@@ -1,6 +1,7 @@
-import { Remote } from 'comlink';
 import { Worker } from 'worker_threads';
 import { TO_CLONEABLE } from './constants';
+
+import { Remote } from './vendor/comlink';
 
 // OPTIONS:
 

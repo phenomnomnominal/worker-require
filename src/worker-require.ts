@@ -1,8 +1,9 @@
 import callsite from 'callsite';
-import { releaseProxy, wrap } from 'comlink';
-import nodeEndpoint from 'comlink/dist/umd/node-adapter';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
+
+import { releaseProxy, wrap } from './vendor/comlink';
+import nodeEndpoint from './vendor/node-adapter';
 
 import { TO_CLONEABLE, WORKER_PATH } from './constants';
 import { setHandlers } from './handlers';

@@ -1,7 +1,8 @@
 import assert from 'assert';
-import { transferHandlers, expose, wrap } from 'comlink';
-import nodeEndpoint from 'comlink/dist/umd/node-adapter';
 import { MessageChannel, MessagePort } from 'worker_threads';
+
+import { transferHandlers, expose, wrap } from './vendor/comlink';
+import nodeEndpoint from './vendor/node-adapter';
 
 import { TO_CLONEABLE } from './constants';
 import { WorkerRequireCloneableInstance, WorkerRequireFunc } from './types';
