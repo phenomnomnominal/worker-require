@@ -25,7 +25,7 @@
     "lint:fix": "yarn lint:src:fix && yarn lint:test",
     "lint:src:fix": "eslint src/**/*.ts --fix",
     "lint:test:fix": "eslint test/**/*.ts --fix",
-    "test": "yarn compile:test && jest",
+    "test": "yarn compile:test && jest && WORKER_REQUIRE=false jest --collectCoverage=false",
     "test:detect": "yarn compile:test && jest --detectOpenHandles",
     "test:debug": "yarn compile:test && ndb jest --config=./jest.config.js --runInBand --collectCoverage=false",
     "prepublishOnly": "yarn build"

@@ -221,7 +221,10 @@ describe('worker-require', () => {
     await destroy();
   });
 
-  it('actualy makes shit faster', async () => {
+  const isEnabled = process.env.WORKER_REQUIRE !== 'false';
+  const withParallel = isEnabled ? it : it.skip;
+
+  withParallel('actualy makes shit faster', async () => {
     const wr = createWorkerRequire<
       WorkerRequireModule<typeof import('../fixtures/basic')>
     >('../dist/fixtures/basic', { cache: false });

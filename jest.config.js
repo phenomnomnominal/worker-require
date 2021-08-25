@@ -1,13 +1,13 @@
 module.exports = {
   globals: {
-    tsConfig: 'tsconfig.test.json'
+    tsConfig: 'tsconfig.test.json',
   },
   moduleFileExtensions: ['ts', 'js'],
   collectCoverage: true,
-  collectCoverageFrom: ['<rootDir>/src/**'],
+  collectCoverageFrom: ['<rootDir>/src/**', '!<rootDir>/src/vendor/**'],
   coverageDirectory: '<rootDir>/reports/coverage',
   transform: {
-    '\\.(ts)$': 'ts-jest'
+    '\\.(ts)$': 'ts-jest',
   },
-  testRegex: '/test/.*\\.spec\\.ts$'
+  testRegex: '/test/.*\\.spec\\.ts$',
 };
