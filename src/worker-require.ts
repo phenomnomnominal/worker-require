@@ -52,7 +52,7 @@ function createProxy<Module>(
   function getModule(): Module | Remote<Module> {
     if (process.env.WORKER_REQUIRE === 'false') {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-      return require(id);
+      return require(requirePath);
     }
     return handle.remote;
   }
