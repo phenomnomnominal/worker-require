@@ -23,7 +23,7 @@ export function createWorkerRequire<Module>(
   const [, call] = callsite();
   const sourcePath = call.getFileName();
   return (): WorkerRequireModuleAsync<Module> =>
-    createProxy<Module>(sourcePath, id, options);
+    wrapModule<Module>(sourcePath, id, options);
 }
 
 export function workerRequire<Module>(
@@ -32,10 +32,10 @@ export function workerRequire<Module>(
 ): WorkerRequireModuleAsync<Module> {
   const [, call] = callsite();
   const sourcePath = call.getFileName();
-  return createProxy<Module>(sourcePath, id, options);
+  return wrapModule<Module>(sourcePath, id, options);
 }
 
-function createProxy<Module>(
+function wrapModule<Module>(
   sourcePath: string,
   id: string,
   options: WorkerRequireOptions = { cache: true }
@@ -43,13 +43,13 @@ function createProxy<Module>(
   const idPath = path.resolve(path.dirname(sourcePath), id);
   const requirePath = require.resolve(idPath);
 
-  const handle = getWorker<Module>(requirePath, options);
-
   async function destroy(): Promise<void> {
     await destroyWorker(requirePath, handle);
   }
 
-  function getModule(): Module | Remote<Module> {
+  const handle = getWorker<Module>(requirePath, options);
+
+  function getModule(): Remote<Module> {
     if (process.env.WORKER_REQUIRE === 'false') {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return require(requirePath);
@@ -63,28 +63,37 @@ function createProxy<Module>(
         return destroy;
       }
 
-      return new Proxy(() => void 0, {
-        /* eslint-disable @typescript-eslint/no-var-requires */
-        get(_: unknown, propertyName: string | symbol): unknown {
-          if (propertyName === TO_CLONEABLE) {
-            return null;
-          }
-          if (propertyName === 'then') {
-            return null;
-          }
+      return createProxy(getModule, [name]);
+    },
+  });
+}
 
-          const module = getModule();
-          // @ts-expect-error Proxy magic, hard to type:
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          return module[name][propertyName];
-        },
-        apply(_: unknown, __: unknown, args: Array<unknown>): unknown {
-          const module = getModule();
-          // @ts-expect-error Proxy magic, hard to type:
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-          return module[name](...args);
-        },
-      });
+function createProxy<Module>(
+  getModule: () => Remote<Module>,
+  path: Array<string | symbol>
+) {
+  return new Proxy(() => void 0, {
+    get(_: unknown, name: string | symbol): unknown {
+      if (name === TO_CLONEABLE) {
+        return null;
+      }
+      if (name === 'then') {
+        return null;
+      }
+
+      return createProxy(getModule, [...path, name]);
+    },
+    apply(_: unknown, thisArg: unknown, args: Array<unknown>): unknown {
+      let obj = getModule();
+      while (path.length > 1) {
+        // @ts-expect-error Proxy Magic is hard to type:
+        // eslint-disable-next-line
+        obj = obj[path.shift()!];
+      }
+      const [prop] = path;
+      // @ts-expect-error Proxy Magic is hard to type:
+      // eslint-disable-next-line
+      return Promise.resolve(obj[prop].call(thisArg, ...args));
     },
   });
 }
