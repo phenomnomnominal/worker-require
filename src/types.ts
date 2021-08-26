@@ -9,7 +9,7 @@ export type WorkerRequireOptions = {
   cache: boolean;
 };
 
-// CACHE:
+// HANDLES:
 
 export type WorkerRequireHandle<RemoteType> = {
   remote: Remote<RemoteType>;

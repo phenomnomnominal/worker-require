@@ -2,7 +2,7 @@ import callsite from 'callsite';
 import * as path from 'path';
 import { Worker } from 'worker_threads';
 
-import { releaseProxy, Remote, wrap } from './vendor/comlink';
+import { releaseProxy, wrap } from './vendor/comlink';
 import nodeEndpoint from './vendor/node-adapter';
 
 import { TO_CLONEABLE, WORKER_PATH } from './constants';
@@ -43,64 +43,57 @@ function wrapModule<Module>(
   const idPath = path.resolve(path.dirname(sourcePath), id);
   const requirePath = require.resolve(idPath);
 
-  async function destroy(): Promise<void> {
-    await destroyWorker(requirePath, handle);
+  const isEnabled = process.env.WORKER_REQUIRE !== 'false';
+
+  function createProxy(
+    path: Array<string | symbol>,
+    handle: WorkerRequireHandle<Module> | null
+  ) {
+    return new Proxy(() => void 0, {
+      get(_: unknown, name: string | symbol): unknown {
+        if (name === TO_CLONEABLE) {
+          return null;
+        }
+        if (name === 'then') {
+          return null;
+        }
+
+        return createProxy([...path, name], handle);
+      },
+      apply(_: unknown, __: unknown, args: Array<unknown>): unknown {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        let obj = handle ? handle.remote : require(requirePath);
+        while (path.length > 1) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-non-null-assertion
+          obj = obj[path.shift()!];
+        }
+        const [prop] = path;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        return Promise.resolve(obj[prop](...args));
+      },
+    });
   }
 
-  const handle = getWorker<Module>(requirePath, options);
-
-  function getModule(): Remote<Module> {
-    if (process.env.WORKER_REQUIRE === 'false') {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-      return require(requirePath);
-    }
-    return handle.remote;
-  }
+  const handle = isEnabled ? getHandle<Module>(requirePath, options) : null;
 
   return new Proxy({} as WorkerRequireModuleAsync<Module>, {
     get(_: WorkerRequireModuleAsync<Module>, name: string | symbol): unknown {
       if (name === 'destroy') {
-        return destroy;
+        return async function destroy(): Promise<void> {
+          if (handle) {
+            await destroyWorker(requirePath, handle);
+          }
+        };
       }
 
-      return createProxy(getModule, [name]);
-    },
-  });
-}
-
-function createProxy<Module>(
-  getModule: () => Remote<Module>,
-  path: Array<string | symbol>
-) {
-  return new Proxy(() => void 0, {
-    get(_: unknown, name: string | symbol): unknown {
-      if (name === TO_CLONEABLE) {
-        return null;
-      }
-      if (name === 'then') {
-        return null;
-      }
-
-      return createProxy(getModule, [...path, name]);
-    },
-    apply(_: unknown, thisArg: unknown, args: Array<unknown>): unknown {
-      let obj = getModule();
-      while (path.length > 1) {
-        // @ts-expect-error Proxy Magic is hard to type:
-        // eslint-disable-next-line
-        obj = obj[path.shift()!];
-      }
-      const [prop] = path;
-      // @ts-expect-error Proxy Magic is hard to type:
-      // eslint-disable-next-line
-      return Promise.resolve(obj[prop].call(thisArg, ...args));
+      return createProxy([name], handle);
     },
   });
 }
 
 const HANDLES = new Map() as WorkerRequireHandles;
 
-function getWorker<Module = unknown>(
+function getHandle<Module = unknown>(
   requirePath: string,
   options: WorkerRequireOptions
 ): WorkerRequireHandle<Module> {
