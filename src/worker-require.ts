@@ -68,8 +68,12 @@ function wrapModule<Module>(
           obj = obj[path.shift()!];
         }
         const [prop] = path;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-        return Promise.resolve(obj[prop](...args));
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+          return Promise.resolve(obj[prop](...args));
+        } catch (error) {
+          return Promise.reject(error);
+        }
       },
     });
   }
