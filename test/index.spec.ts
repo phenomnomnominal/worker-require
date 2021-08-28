@@ -42,6 +42,18 @@ describe('worker-require', () => {
     expect(thrown).toBe(null);
   });
 
+  it('should work with already default exports', async () => {
+    const wait = workerRequire<
+      WorkerRequireModule<typeof import('../fixtures/default')>
+    >('../dist/fixtures/default');
+
+    const result = await wait.default();
+
+    expect(result).toEqual('done');
+
+    await wait.destroy();
+  });
+
   it('should work with already async stuff', async () => {
     const { wait, destroy } = workerRequire<
       WorkerRequireModule<typeof import('../fixtures/async')>

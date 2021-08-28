@@ -45,17 +45,28 @@ function wrapModule<Module>(
 
   const isEnabled = process.env.WORKER_REQUIRE !== 'false';
 
+  const handle = isEnabled ? getHandle<Module>(requirePath, options) : null;
+
+  async function destroy(): Promise<void> {
+    if (handle) {
+      await destroyWorker(requirePath, handle);
+    }
+  }
+
+  const nonProxyResults = new Map<string | symbol, unknown>([
+    ['destroy', destroy],
+    [TO_CLONEABLE, null],
+    ['then', null],
+  ]);
+
   function createProxy(
     path: Array<string | symbol>,
     handle: WorkerRequireHandle<Module> | null
   ) {
     return new Proxy(() => void 0, {
       get(_: unknown, name: string | symbol): unknown {
-        if (name === TO_CLONEABLE) {
-          return null;
-        }
-        if (name === 'then') {
-          return null;
+        if (nonProxyResults.has(name)) {
+          return nonProxyResults.get(name);
         }
 
         return createProxy([...path, name], handle);
@@ -78,21 +89,7 @@ function wrapModule<Module>(
     });
   }
 
-  const handle = isEnabled ? getHandle<Module>(requirePath, options) : null;
-
-  return new Proxy({} as WorkerRequireModuleAsync<Module>, {
-    get(_: WorkerRequireModuleAsync<Module>, name: string | symbol): unknown {
-      if (name === 'destroy') {
-        return async function destroy(): Promise<void> {
-          if (handle) {
-            await destroyWorker(requirePath, handle);
-          }
-        };
-      }
-
-      return createProxy([name], handle);
-    },
-  });
+  return createProxy([], handle) as WorkerRequireModuleAsync<Module>;
 }
 
 const HANDLES = new Map() as WorkerRequireHandles;
